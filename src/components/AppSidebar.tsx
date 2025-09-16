@@ -4,7 +4,8 @@ import {
   Users, 
   Settings,
   Grid2x2,
-  FileText
+  FileText,
+  ShoppingCart
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -23,6 +24,7 @@ import {
 const navigationItems = [
   { title: "Dashboard", url: "/dashboard", icon: Grid2x2 },
   { title: "Clientes", url: "/clients", icon: Users },
+  { title: "Pedidos", url: "/orders", icon: ShoppingCart },
   { title: "Campanhas", url: "/campaigns", icon: FileText },
   { title: "Relatórios", url: "/reports", icon: BarChart3 },
   { title: "Configurações", url: "/settings", icon: Settings },

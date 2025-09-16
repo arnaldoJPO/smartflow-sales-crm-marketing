@@ -16,6 +16,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import ProtectedLayout from "./components/ProtectedLayout";
+import Orders from "./pages/Orders";
+import SupabaseConnectionTest from "./components/SupabaseConnectionTest";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,11 +40,13 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/test-connection" element={<SupabaseConnectionTest />} />
             
             {/* Protected Routes */}
             <Route element={<ProtectedLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/clients" element={<Clients />} />
+              <Route path="/orders" element={<Orders />} />
               <Route path="/campaigns" element={<Campaigns />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />

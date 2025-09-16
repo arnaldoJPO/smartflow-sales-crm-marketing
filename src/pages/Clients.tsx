@@ -1,10 +1,11 @@
- import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Users, FileText, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +29,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// Definição das interfaces
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: 'Ativo' | 'Risco' | 'Inativo';
+  score: number;
+  lastOrder: string;
+  totalSpent: number;
+  orders: number;
+}
+
+interface ClientsStats {
+  total: number;
+  active: number;
+  risk: number;
+  inactive: number;
+}
+
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+
 const Clients = () => {
-  const [clientsData, setClientsData] = useState([]);
-  const [clientsStats, setClientsStats] = useState({
+  const [clientsData, setClientsData] = useState<Client[]>([]);
+  const [clientsStats, setClientsStats] = useState<ClientsStats>({
     total: 0,
     active: 0,
     risk: 0,
@@ -43,7 +66,9 @@ const Clients = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const filteredClients = clientsData.filter(client => {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
+  const filteredClients = clientsData.filter((client: Client) => {
     const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          client.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || client.status === statusFilter;
@@ -55,7 +80,7 @@ const Clients = () => {
     return matchesSearch && matchesStatus && matchesScore;
   });
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: 'Ativo' | 'Risco' | 'Inativo'): BadgeVariant => {
     switch (status) {
       case "Ativo": return "default";
       case "Risco": return "secondary";
@@ -64,7 +89,7 @@ const Clients = () => {
     }
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number): string => {
     if (score >= 70) return "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950";
     if (score >= 40) return "text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950";
     return "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950";
@@ -91,33 +116,64 @@ const Clients = () => {
   useEffect(() => {
     async function fetchClients() {
       try {
-        const response = await fetch('/api/clients');
-        const data = await response.json();
-        const clients = data.clients || [];
-        setClientsData(clients);
+        // Buscar restaurant_id do usuário logado
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setClientsData([]);
+          setClientsStats({ total: 0, active: 0, risk: 0, inactive: 0 });
+          setLoading(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('restaurant_id')
+          .eq('id', user.id)
+          .single();
+
+        if (!profile?.restaurant_id) {
+          setClientsData([]);
+          setClientsStats({ total: 0, active: 0, risk: 0, inactive: 0 });
+          setLoading(false);
+          return;
+        }
+
+        // Buscar clientes do restaurante
+        const { data: clients, error } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('restaurant_id', profile.restaurant_id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Erro ao buscar clientes:', error);
+          setClientsData([]);
+          setClientsStats({ total: 0, active: 0, risk: 0, inactive: 0 });
+          setLoading(false);
+          return;
+        }
+
+        setClientsData(clients || []);
         
-        // Calculate real stats from fetched data
+        // Calcular estatísticas reais
         const stats = {
-          total: clients.length,
-          active: clients.filter(client => client.status === 'Ativo').length,
-          risk: clients.filter(client => client.status === 'Risco').length,
-          inactive: clients.filter(client => client.status === 'Inativo').length
+          total: clients?.length || 0,
+          active: clients?.filter((client: Client) => client.status === 'Ativo').length || 0,
+          risk: clients?.filter((client: Client) => client.status === 'Risco').length || 0,
+          inactive: clients?.filter((client: Client) => client.status === 'Inativo').length || 0
         };
         setClientsStats(stats);
         
       } catch (error) {
-        console.error('Failed to fetch clients:', error);
-        toast({
-          title: "Erro ao carregar clientes",
-          description: "Não foi possível carregar os dados dos clientes.",
-          variant: "destructive"
-        });
+        console.error('Falha ao buscar clientes:', error);
+        setClientsData([]);
+        setClientsStats({ total: 0, active: 0, risk: 0, inactive: 0 });
       } finally {
         setLoading(false);
       }
     }
     fetchClients();
-  }, [toast]);
+  }, []);
 
   if (loading) {
     return <div>Carregando dados dos clientes...</div>;
@@ -184,6 +240,7 @@ const Clients = () => {
         </Card>
         <Card>
           <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Inativos</p>
                 <p className="text-2xl font-bold text-red-600">{clientsStats.inactive.toLocaleString('pt-BR')}</p>
@@ -274,12 +331,12 @@ const Clients = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-foreground">
-                      {new Date(client.lastOrder).toLocaleDateString('pt-BR')}
+                      {client.lastOrder ? new Date(client.lastOrder).toLocaleDateString('pt-BR') : 'N/A'}
                     </TableCell>
                     <TableCell className="text-foreground">
-                      R$ {client.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {(client.totalSpent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell className="text-foreground">{client.orders}</TableCell>
+                    <TableCell className="text-foreground">{client.orders || 0}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleClientAction('Ver Detalhes', client.name)}>

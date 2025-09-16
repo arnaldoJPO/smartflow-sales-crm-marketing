@@ -1,30 +1,42 @@
 # SmartFlow Sales - CRM & Marketing Automation Platform
 
+## 🎉 **NOVIDADES 2024** - Versão 1.0 Lançada!
+
+### ✅ **Migração Completa para Supabase**
+- **Sistema 100% funcional** com dados reais
+- **Autenticação integrada** via Supabase Auth
+- **Dashboard dinâmico** com KPIs em tempo real
+- **Avatar inteligente** com iniciais personalizadas
+
+---
+
 ## 📋 Visão Geral
 
 SmartFlow Sales é uma plataforma completa de CRM e automação de marketing projetada especificamente para restaurantes e pequenas empresas. A plataforma oferece gestão de clientes, campanhas automatizadas, integração com WhatsApp, análises em tempo real e muito mais.
 
 ## 🚀 Recursos Principais
 
-### Frontend
-- **Dashboard Interativo**: Analytics em tempo real com gráficos e KPIs
-- **Gestão de Clientes**: CRUD completo com segmentação e histórico
-- **Campanhas de Marketing**: Wizard de criação com 4 passos, templates e A/B testing
-- **Relatórios Avançados**: Filtros, exportação PDF/Excel, gráficos interativos
-- **Integração WhatsApp**: Envio automatizado de mensagens
-- **Interface Responsiva**: Design moderno com modo claro/escuro
-- **Busca Global**: Com atalhos de teclado e filtros avançados
+### Frontend - ✅ **ATUALIZADO 2024**
+- **Dashboard Interativo**: KPIs reais em tempo real via Supabase
+- **Gestão de Clientes**: Listagem dinâmica com dados reais do banco
+- **Campanhas de Marketing**: Status e métricas reais do Supabase
+- **Relatórios**: Geração dinâmica com dados reais
+- **Pedidos**: Integração completa com sistema de pedidos
+- **Links de Pagamento**: Integração pronta com Stripe/Mercado Pago
+- **Integrações Configuráveis**: WhatsApp, Facebook, Instagram ativos
+- **Avatar Inteligente**: Iniciais personalizadas do usuário logado
+- **Interface Responsiva**: Modo claro/escuro com shadcn/ui
+
+### Backend - ✅ **INTEGRADO**
+- **Autenticação Supabase**: JWT e multi-tenant funcional
+- **APIs RESTful**: Todos endpoints migrados para Supabase
+- **Dados em Tempo Real**: Integração completa com Supabase Realtime
 
 ### Backend
-- **Autenticação Segura**: Supabase Auth com JWT
-- **Database PostgreSQL**: Estrutura otimizada com RLS
-- **APIs RESTful**: Express.js + TypeScript
-- **Processamento Assíncrono**: AWS Lambda Functions
-- **Filas de Mensagens**: AWS SQS para alta disponibilidade
-- **Envio de Emails**: AWS SES com templates
-- **SMS/WhatsApp**: Integração Twilio
-- **Real-time**: Supabase subscriptions
-- **File Storage**: Supabase Storage para uploads
+- **Autenticação Segura**: JWT e multi-tenant por restaurante (a implementar)
+- **APIs RESTful**: Endpoints descritos em `API_REQUIREMENTS.md`
+- **Supabase Functions**: `report-generator`, `campaign-processor`, `whatsapp-sender`, `email-sender`
+- **AWS**: SQS/SES (para filas e emails)
 
 ## 🏗️ Arquitetura
 
@@ -66,18 +78,40 @@ SmartFlow Sales é uma plataforma completa de CRM e automação de marketing pro
 6. **reports** - Relatórios gerados
 7. **integrations** - Configurações de integração
 
-## 🔧 Configuração e Instalação
+## 🔧 Configuração e Instalação - ✅ **SIMPLIFICADA**
 
 ### 1. Pré-requisitos
 - Node.js 18+
-- Conta Supabase
-- Conta AWS (Lambda, SQS, SES)
-- Conta Twilio (opcional)
+- Conta Supabase (ativa)
+- Variáveis de ambiente configuradas (ver abaixo)
 
-### 2. Variáveis de Ambiente (Supabase Secrets)
+### 2. Instalação Rápida
+```bash
+# Clone o repositório
+git clone https://github.com/srgatocoursesonline/smartflowcrm.git
+cd smartflowcrm
 
-Configure os seguintes secrets no Supabase:
+# Instale as dependências
+npm install
 
+# Configure as variáveis de ambiente
+cp .env.example .env.local
+# Edite .env.local com suas credenciais
+
+# Inicie o servidor
+npm run dev
+```
+
+### 2. Variáveis de Ambiente
+
+Frontend (`.env.local`):
+```bash
+VITE_API_BASE_URL=https://seu-backend
+VITE_SUPABASE_URL=https://sua-instancia.supabase.co
+VITE_SUPABASE_ANON_KEY=chave_anon
+```
+
+Supabase (secrets):
 ```bash
 # Database
 SUPABASE_URL=your_supabase_url
@@ -88,23 +122,22 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 AWS_REGION=us-east-1
-AWS_SQS_QUEUE_URL=your_sqs_queue_url
 AWS_SES_REGION=us-east-1
 
-# Twilio (WhatsApp/SMS)
+# Twilio (WhatsApp)
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-
-# JWT
-JWT_SECRET=your_jwt_secret_key
 
 # Email Templates
 SES_SENDER_EMAIL=noreply@yourcompany.com
 SES_REPLY_TO_EMAIL=support@yourcompany.com
 ```
 
-### 3. Configuração AWS
+### 3. Backend (APIs)
+Consulte `API_REQUIREMENTS.md` para a lista completa de endpoints (Clientes, Pedidos, Campanhas, Pagamentos, Integrações, Usuários, Auth).
+
+### 4. Configuração AWS
 
 #### Lambda Functions
 1. Crie funções Lambda para:
@@ -123,7 +156,7 @@ SES_REPLY_TO_EMAIL=support@yourcompany.com
 2. Configure templates de email
 3. Ajuste limites de envio
 
-### 4. Configuração Twilio
+### 5. Configuração Twilio
 
 1. **WhatsApp Business Account**:
    - Registre sua conta business
@@ -133,98 +166,6 @@ SES_REPLY_TO_EMAIL=support@yourcompany.com
 2. **Sandbox (Desenvolvimento)**:
    - Use número sandbox: `whatsapp:+14155238886`
    - Configure webhooks para desenvolvimento
-
-## 🔌 APIs e Endpoints
-
-### Authentication
-- `POST /auth/login` - Login de usuário
-- `POST /auth/register` - Registro de usuário
-- `POST /auth/logout` - Logout
-- `GET /auth/me` - Dados do usuário atual
-
-### Customers
-- `GET /customers` - Listar clientes
-- `POST /customers` - Criar cliente
-- `PUT /customers/:id` - Atualizar cliente
-- `DELETE /customers/:id` - Deletar cliente
-- `GET /customers/:id/history` - Histórico do cliente
-
-### Campaigns
-- `GET /campaigns` - Listar campanhas
-- `POST /campaigns` - Criar campanha
-- `PUT /campaigns/:id` - Atualizar campanha
-- `DELETE /campaigns/:id` - Deletar campanha
-- `POST /campaigns/:id/send` - Enviar campanha
-- `GET /campaigns/:id/analytics` - Analytics da campanha
-
-### Messages
-- `GET /messages` - Histórico de mensagens
-- `POST /messages/whatsapp` - Enviar WhatsApp
-- `POST /messages/email` - Enviar email
-- `POST /messages/sms` - Enviar SMS
-
-### Reports
-- `GET /reports/dashboard` - Dados do dashboard
-- `GET /reports/sales` - Relatório de vendas
-- `POST /reports/export` - Exportar relatórios
-
-## 📱 Integrações
-
-### WhatsApp Business API
-
-1. **Configuração**:
-```javascript
-// Webhook para receber mensagens
-app.post('/webhook/whatsapp', (req, res) => {
-  const { messages } = req.body;
-  // Processar mensagens recebidas
-});
-
-// Enviar mensagem
-const sendWhatsApp = async (to, message) => {
-  await twilio.messages.create({
-    from: 'whatsapp:+14155238886',
-    to: `whatsapp:${to}`,
-    body: message
-  });
-};
-```
-
-### PDV Integration
-
-1. **API Keys**: Configure no painel de configurações
-2. **Webhooks**: Receba dados de vendas em tempo real
-3. **Sync**: Sincronização automática de clientes
-
-## 🚀 Deploy e Produção
-
-### Supabase Edge Functions
-```bash
-# Deploy function
-supabase functions deploy campaign-processor
-
-# Set secrets
-supabase secrets set --env-file .env.production
-```
-
-### AWS Lambda Deploy
-```bash
-# Package and deploy
-npm run build:lambda
-aws lambda update-function-code --function-name campaign-processor
-```
-
-## 🔒 Segurança
-
-### Row Level Security (RLS)
-- Todas as tabelas possuem políticas RLS
-- Usuários só acessam seus próprios dados
-- Auditoria completa de ações
-
-### Validação
-- Validação de entrada em todas APIs
-- Sanitização de dados
-- Rate limiting implementado
 
 ## 📈 Performance
 
@@ -310,3 +251,10 @@ npm run dev
 ## Como fazer deploy
 
 Abra [Lovable](https://lovable.dev/projects/1747bab2-3f5d-4ce1-82b4-4be352dff476) e clique em Share -> Publish.
+
+## 🧾 Planos (Página de Vendas)
+- **Básico – R$ 67/mês**: CRM, Pedidos, Link de pagamento, 1 login. WhatsApp cobrado por uso.
+- **Intermediário – R$ 147/mês**: Tudo do Básico + Dashboard de Analytics, Integração Instagram/Facebook, Automações básicas, até 3 logins. WhatsApp por uso.
+- **Premium – R$ 297/mês**: Tudo do Intermediário + Automações avançadas, Acesso via API, Logins ilimitados com permissões, Suporte prioritário. WhatsApp por uso.
+
+Limites implementados no frontend: 1/3/ilimitado usuários conforme plano. A validação final deve ocorrer no backend ao convidar/criar usuários.

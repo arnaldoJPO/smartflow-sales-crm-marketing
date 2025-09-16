@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    name: "",
+    fullName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -18,6 +19,7 @@ const Register = () => {
     phone: "",
     acceptTerms: false,
   });
+  const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -29,10 +31,10 @@ const Register = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.password || !formData.restaurant) {
+    if (!formData.fullName || !formData.email || !formData.password || !formData.restaurant) {
       toast({
         title: "Erro",
         description: "Por favor, preencha todos os campos obrigatórios.",
@@ -59,12 +61,78 @@ const Register = () => {
       return;
     }
 
-    toast({
-      title: "Conta criada com sucesso!",
-      description: "Redirecionando para o onboarding...",
-    });
-    
-    navigate("/onboarding");
+    setLoading(true);
+
+    try {
+      // 1. Criar usuário no Supabase Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            email: formData.email,
+          },
+          // Em desenvolvimento, pode pular confirmação de email
+          emailRedirectTo: window.location.origin
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      // 2. Criar restaurante imediatamente com o ID do usuário criado
+      const user = authData.user;
+      
+      if (!user) {
+        throw new Error('Erro ao criar usuário. Tente novamente.');
+      }
+
+      const { data: restaurantData, error: restaurantError } = await supabase
+        .from('restaurants')
+        .insert({
+          name: formData.restaurant,
+          phone: formData.phone,
+          owner_id: user.id
+        })
+        .select()
+        .single();
+
+      if (restaurantError) {
+        console.error('Erro ao criar restaurante:', restaurantError);
+        throw restaurantError;
+      }
+
+      // 3. Atualizar profile com informações do usuário
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: formData.fullName,
+          phone: formData.phone
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Erro ao atualizar profile:', profileError);
+        // Não falhar o registro se o profile não atualizar
+      }
+
+      toast({
+        title: "Conta criada com sucesso!",
+        description: "Verifique seu email para confirmar o cadastro.",
+      });
+      
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar conta",
+        description: error.message || "Ocorreu um erro ao processar seu cadastro.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -178,8 +246,8 @@ const Register = () => {
                   </Label>
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Criar Conta Gratuita
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Criando conta..." : "Criar Conta Gratuita"}
                 </Button>
               </form>
             </CardContent>

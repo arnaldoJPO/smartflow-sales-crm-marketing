@@ -1,194 +1,116 @@
-# 🔄 Funcionalidades com Dados Reais - SmartFlow Sales
+# Requisitos de API para o SmartFlow Sales
 
-## ⚠️ APIs Obrigatórias para Funcionamento Completo
+Este documento lista os endpoints necessários no backend para que o frontend funcione sem dados mockados.
 
-As seguintes funcionalidades foram atualizadas para usar dados reais e **REQUEREM** as APIs correspondentes para funcionar corretamente:
+## Autenticação
+- POST /auth/login: e-mail e senha, retorna token de sessão.
+- POST /auth/register
+- POST /auth/logout
+- GET /auth/me: retorna usuário e restaurante atual.
 
-### 1. **Dashboard** (`src/pages/Dashboard.tsx`)
-- **API Necessária**: `POST /supabase/functions/report-generator`
-- **Payload**: 
+## Clientes (CRM)
+- GET /api/clients: lista clientes do restaurante atual.
+- POST /api/clients
+- PUT /api/clients/:id
+- DELETE /api/clients/:id
+
+## Pedidos (Orders)
+- GET /api/orders: lista pedidos do restaurante atual.
+  - Response exemplo:
   ```json
-  {
-    "type": "dashboard",
-    "period": "month",
-    "restaurant_id": "your-restaurant-id"
-  }
+  { "orders": [{
+    "id": "uuid",
+    "order_number": "#12345",
+    "customer_id": "uuid",
+    "total": 120.5,
+    "payment_method": "pix|card|cash",
+    "status": "completed|pending|canceled",
+    "created_at": "2024-08-01T12:34:56.000Z",
+    "items": [{ "product_id": "p1", "name": "Pizza", "quantity": 2, "total": 80 }]
+  }]}
   ```
-- **Funcionalidade**: Carrega dados reais de vendas, métricas e gráficos
-- **Status**: ✅ Implementado com dados reais
+- POST /api/payments/link: gerar link de pagamento
+  - Body: `{ "order_id": "uuid", "provider": "stripe" | "mercadopago" }`
+  - Response: `{ "url": "https://..." }`
+  - Observação: implementar no backend a criação via Stripe Checkout Session ou Mercado Pago Preference.
 
-### 2. **Gestão de Campanhas** (`src/pages/Campaigns.tsx`)
-- **API Necessária**: `GET /api/campaigns`
-- **Resposta Esperada**:
-  ```json
-  {
-    "active": [...],
-    "scheduled": [...],
-    "completed": [...],
-    "drafts": [...]
-  }
-  ```
-- **Funcionalidade**: Lista campanhas por status, métricas de performance
-- **Status**: ✅ Implementado com dados reais
+## Campanhas
+- GET /api/campaigns: retorna `{ active: [], scheduled: [], completed: [], drafts: [] }` com os campos utilizados em `src/pages/Campaigns.tsx`.
+- POST /api/campaigns: criação de campanhas.
+- POST /api/campaigns/:id/send: aciona envio (pode disparar Supabase Function `campaign-processor`).
 
-### 3. **Gestão de Clientes** (`src/pages/Clients.tsx`)
-- **API Necessária**: `GET /api/clients`
-- **Resposta Esperada**:
-  ```json
-  {
-    "clients": [
-      {
-        "id": 1,
-        "name": "Nome do Cliente",
-        "email": "email@exemplo.com",
-        "phone": "(11) 99999-9999",
-        "score": 85,
-        "status": "Ativo",
-        "lastOrder": "2024-01-15",
-        "totalSpent": 1250.50,
-        "orders": 12
-      }
-    ]
-  }
-  ```
-- **Funcionalidade**: Lista clientes, filtros, segmentação
-- **Status**: ✅ Implementado com dados reais
+## Relatórios / Dashboard
+O frontend chama Supabase Edge Functions diretamente:
+- POST {VITE_SUPABASE_URL}/functions/v1/report-generator
+  - Headers: `Authorization: Bearer {VITE_SUPABASE_ANON_KEY}`
+  - Body: `{ type, period, start_date?, end_date?, restaurant_id, export_format? }`
 
-## 🚧 APIs Pendentes de Implementação
+Configurar no Supabase:
+- Buckets de storage: `reports` (público) para exportação.
+- Tabelas conforme migrations em `supabase/migrations/001_initial_schema.sql`.
 
-Para que todas as funcionalidades funcionem com dados reais, as seguintes APIs precisam ser implementadas:
+## Mensageria
+### WhatsApp
+- Supabase Function: `whatsapp-sender`
+  - POST {VITE_SUPABASE_URL}/functions/v1/whatsapp-sender
+  - Body: `{ to: "+5511999999999", message: "...", media_url? }`
+  - Secrets: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`
 
-1. **`GET /api/campaigns`** - Endpoint para listar campanhas por status
-2. **`GET /api/clients`** - Endpoint para listar clientes com filtros
-3. **Melhorias no `report-generator`** - Adicionar dados de atividades recentes e alertas
+### Email (SES)
+- Supabase Function: `email-sender`
+  - POST {VITE_SUPABASE_URL}/functions/v1/email-sender
+  - Body: `{ to, subject, html_content, text_content?, template_id?, template_data? }`
+  - Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_REGION`, `SES_SENDER_EMAIL`, `SES_REPLY_TO_EMAIL`
 
-## 📋 Como Implementar as APIs Pendentes
+### Processamento de Campanhas
+- Supabase Function: `campaign-processor`
+  - POST {VITE_SUPABASE_URL}/functions/v1/campaign-processor
+  - Body: `{ campaignId: "uuid", action: "send" | "schedule" }`
+  - Secrets adicionais: `AWS_SQS_WHATSAPP_QUEUE_URL`, `AWS_SQS_SMS_QUEUE_URL`
 
-### 1. API de Campanhas (`/api/campaigns`)
-```javascript
-// Exemplo de implementação
-app.get('/api/campaigns', async (req, res) => {
-  const { data: campaigns } = await supabase
-    .from('campaigns')
-    .select('*')
-    .eq('restaurant_id', req.user.restaurant_id);
-  
-  const grouped = {
-    active: campaigns.filter(c => c.status === 'Ativa'),
-    scheduled: campaigns.filter(c => c.status === 'Agendada'),
-    completed: campaigns.filter(c => c.status === 'Concluída'),
-    drafts: campaigns.filter(c => c.status === 'Rascunho')
-  };
-  
-  res.json(grouped);
-});
-```
+## Variáveis de Ambiente (Frontend)
+- `VITE_API_BASE_URL`: base URL do backend próprio (para `/api/clients`, `/api/orders`, `/api/campaigns`, `/api/payments/link`).
+- `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`: chamadas às edge functions.
 
-### 2. API de Clientes (`/api/clients`)
-```javascript
-// Exemplo de implementação
-app.get('/api/clients', async (req, res) => {
-  const { data: clients } = await supabase
-    .from('customers')
-    .select(`
-      *,
-      orders (*)
-    `)
-    .eq('restaurant_id', req.user.restaurant_id);
-  
-  const processedClients = clients.map(client => ({
-    ...client,
-    totalSpent: client.orders?.reduce((sum, order) => sum + order.total, 0) || 0,
-    orders: client.orders?.length || 0,
-    score: calculateCustomerScore(client),
-    status: determineCustomerStatus(client)
-  }));
-  
-  res.json({ clients: processedClients });
-});
-```
+## Observações
+- Todos endpoints devem respeitar o restaurante do usuário logado (multi-tenant) utilizando o token de autenticação.
+- CORS: habilitar para o domínio do frontend.
 
-### 3. Melhorias no Report Generator
-```javascript
-// Adicionar ao supabase/functions/report-generator/index.ts
-async function getRecentActivities(restaurant_id: string) {
-  const activities = [];
-  
-  // Buscar campanhas recentes
-  const { data: recentCampaigns } = await supabase
-    .from('campaigns')
-    .select('*')
-    .eq('restaurant_id', restaurant_id)
-    .order('created_at', { ascending: false })
-    .limit(5);
-  
-  // Buscar novos clientes
-  const { data: newCustomers } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('restaurant_id', restaurant_id)
-    .order('created_at', { ascending: false })
-    .limit(5);
-  
-  // Processar e formatar atividades
-  return activities;
-}
+## Integrações (Backend)
 
-async function getAlerts(restaurant_id: string) {
-  const alerts = [];
-  
-  // Clientes em risco (sem pedidos há 30+ dias)
-  const { data: riskCustomers } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('restaurant_id', restaurant_id)
-    .lt('last_order_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-  
-  if (riskCustomers?.length > 0) {
-    alerts.push({
-      id: 1,
-      title: "Clientes em Risco",
-      description: `${riskCustomers.length} clientes não fazem pedidos há mais de 30 dias`,
-      type: "warning",
-      action: "Ver Lista"
-    });
-  }
-  
-  return alerts;
-}
-```
+### WhatsApp (Twilio)
+- PUT /api/integrations/whatsapp
+  - Body: `{ credentials: { accountSid, authToken }, config: { senderNumber } }`
+  - Persiste `credentials` (criptografadas) e `config` em `integrations` (name: "whatsapp").
+- GET /api/integrations (retorna todas)
+  - Response: `{ integrations: [{ name, status, config, credentials?: { accountSid } }] }`
+- Teste de envio usa Supabase Edge Function `whatsapp-sender` já existente (frontend chama direto via `VITE_SUPABASE_URL`).
 
-## 🔧 Configuração para Desenvolvimento
+### Facebook/Instagram (Meta OAuth)
+- GET /api/integrations/facebook/connect
+  - Retorna `{ url }` para iniciar OAuth (scopes: `pages_read_engagement, instagram_basic`).
+- GET /api/integrations/facebook/callback
+  - Processa code, salva tokens em `integrations` (name: "facebook"), `status: active`.
+- DELETE /api/integrations/facebook
+  - Revoga/desativa a integração.
 
-### Variáveis de Ambiente Necessárias
-```bash
-# Frontend (.env.local)
-VITE_SUPABASE_URL=https://your-supabase-url.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+### Stripe
+- PUT /api/integrations/stripe
+  - Body: `{ config: { publishableKey }, credentials: { secretKey } }`
+- Uso no frontend: geração de link de pagamento via `POST /api/payments/link`.
 
-# Backend
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
+### Mercado Pago
+- PUT /api/integrations/mercadopago
+  - Body: `{ config: { publicKey }, credentials: { accessToken } }`
+- Uso no frontend: geração de link de pagamento via `POST /api/payments/link`.
 
-### Executar o Projeto
-```bash
-# Instalar dependências
-npm install
+### Usuários (múltiplos logins e permissões)
+- GET /api/users → `{ users: [{ id, email, role, status }] }`
+- POST /api/users/invite → body `{ email, role }`
+- PUT /api/users/:id/role → body `{ role }`
+- POST /api/users/:id/disable
+- GET /auth/me → `{ id, email, role, plan, restaurant_id }`
 
-# Executar em desenvolvimento
-npm run dev
-
-# Acessar em http://localhost:8080
-```
-
-## 📝 Notas Importantes
-
-1. **Dados Mock vs Reais**: As páginas Dashboard, Campaigns e Clients foram atualizadas para buscar dados reais das APIs. Sem as APIs implementadas, elas mostrarão dados vazios ou mensagens de erro.
-
-2. **Autenticação**: As APIs precisam implementar autenticação para identificar o `restaurant_id` do usuário logado.
-
-3. **Tratamento de Erros**: Todas as páginas implementam tratamento básico de erros com toast notifications.
-
-4. **Loading States**: Estados de carregamento foram implementados para melhor UX durante as requisições.
-
-5. **Supabase Functions**: A função `report-generator` já existe e funciona, mas pode ser expandida para incluir mais dados como atividades recentes e alertas.
+Notas de segurança:
+- Credenciais devem ser armazenadas criptografadas (ex.: KMS/Hashicorp Vault) e nunca retornadas integrais ao frontend.
+- Aplicar RLS e verificação de `restaurant_id` em todas as rotas.

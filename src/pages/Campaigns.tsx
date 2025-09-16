@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Users, BarChart3 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { NewCampaignForm } from "@/components/NewCampaignForm";
-import { CampaignWizard } from "@/components/CampaignWizard";
+import { BarChart3, Clock, Users, Mail, Phone, Calendar, Plus, FileText, Eye } from "lucide-react";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { EmptyCampaigns } from "@/components/EmptyState";
+import { CampaignWizard } from "@/components/CampaignWizard";
+import { NewCampaignForm } from "@/components/NewCampaignForm";
+import { getPlanLimits } from "@/lib/plan";
+import { supabase } from "@/lib/supabase";
 
 const Campaigns = () => {
   const [activeTab, setActiveTab] = useState("active");
@@ -20,6 +23,39 @@ const Campaigns = () => {
   const [isNewCampaignOpen, setIsNewCampaignOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = React.useState<{ plan?: string; restaurant_id?: string } | null>(null);
+  const [restaurantId, setRestaurantId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    async function fetchUserData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setCurrentUser(null);
+          return;
+        }
+
+        // Buscar informações do perfil do usuário
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('plan, restaurant_id')
+          .eq('id', user.id)
+          .single();
+
+        setCurrentUser({ 
+          plan: profile?.plan || 'free',
+          restaurant_id: profile?.restaurant_id
+        });
+        setRestaurantId(profile?.restaurant_id || null);
+      } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        setCurrentUser(null);
+      }
+    }
+    fetchUserData();
+  }, []);
+
+  const planLimits = getPlanLimits(currentUser?.plan);
 
   const handleNewCampaign = (newCampaign: any) => {
     setCampaignsData(prev => {
@@ -39,7 +75,9 @@ const Campaigns = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
+  type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+
+  const getStatusColor = (status: string): BadgeVariant => {
     switch (status) {
       case "Ativa": return "default";
       case "Agendada": return "secondary";
@@ -65,7 +103,7 @@ const Campaigns = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {showMetrics && campaign.sent && (
+        {showMetrics && typeof campaign.sent === 'number' && campaign.sent > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="text-center">
               <p className="text-2xl font-bold text-primary">{campaign.sent}</p>
@@ -73,23 +111,26 @@ const Campaigns = () => {
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                {Math.round((campaign.opened / campaign.sent) * 100)}%
+                {Math.round(((campaign.opened ?? 0) / campaign.sent) * 100)}%
               </p>
               <p className="text-sm text-muted-foreground">Taxa Abertura</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-yellow-600">
-                {Math.round((campaign.clicked / campaign.sent) * 100)}%
+                {Math.round(((campaign.clicked ?? 0) / campaign.sent) * 100)}%
               </p>
               <p className="text-sm text-muted-foreground">Taxa Clique</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">
-                R$ {campaign.revenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {(campaign.revenue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-muted-foreground">Receita</p>
             </div>
           </div>
+        )}
+        {!planLimits.features.advancedAutomations && showMetrics && (
+          <p className="text-xs text-muted-foreground mb-4">Métricas avançadas completas disponíveis no Premium.</p>
         )}
         
         {campaign.scheduledFor && (
@@ -130,25 +171,59 @@ const Campaigns = () => {
     </Card>
   );
 
+  // Cálculos derivados (evita mocks nos cards)
+  const allForMetrics = [
+    ...campaignsData.active,
+    ...campaignsData.completed,
+  ] as any[];
+
+  const totalSent = allForMetrics.reduce((acc, c) => acc + (typeof c.sent === 'number' ? c.sent : 0), 0);
+  const totalOpened = allForMetrics.reduce((acc, c) => acc + (typeof c.opened === 'number' ? c.opened : 0), 0);
+  const totalRevenue = allForMetrics.reduce((acc, c) => acc + (typeof c.revenue === 'number' ? c.revenue : 0), 0);
+
+  const averageOpenRate = totalSent > 0 ? `${(totalOpened / totalSent * 100).toFixed(1)}%` : '—';
+  const conversionsThisMonth = '—'; // Preparado para receber campo real do backend (ex.: conversions)
+
   useEffect(() => {
     async function fetchCampaigns() {
+      if (!restaurantId) {
+        setCampaignsData({ active: [], scheduled: [], completed: [], drafts: [] });
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch('/api/campaigns'); // Replace with actual API endpoint
-        const data = await response.json();
-        setCampaignsData({
-          active: data.active || [],
-          scheduled: data.scheduled || [],
-          completed: data.completed || [],
-          drafts: data.drafts || []
-        });
+        // Buscar campanhas do Supabase
+        const { data: campaigns, error } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Erro ao buscar campanhas:', error);
+          setCampaignsData({ active: [], scheduled: [], completed: [], drafts: [] });
+          return;
+        }
+
+        // Categorizar campanhas por status
+        const categorized = {
+          active: campaigns?.filter(c => c.status === 'ativa') || [],
+          scheduled: campaigns?.filter(c => c.status === 'agendada') || [],
+          completed: campaigns?.filter(c => c.status === 'concluida') || [],
+          drafts: campaigns?.filter(c => c.status === 'rascunho') || []
+        };
+
+        setCampaignsData(categorized);
       } catch (error) {
         console.error('Failed to fetch campaigns:', error);
+        setCampaignsData({ active: [], scheduled: [], completed: [], drafts: [] });
       } finally {
         setLoading(false);
       }
     }
     fetchCampaigns();
-  }, []);
+  }, [restaurantId]);
   
   if (loading) {
     return <div>Carregando campanhas...</div>;
@@ -198,7 +273,7 @@ const Campaigns = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Taxa Média Abertura</p>
-                <p className="text-2xl font-bold text-primary">78.5%</p>
+                <p className="text-2xl font-bold text-primary">{averageOpenRate}</p>
               </div>
               <Users className="h-8 w-8 text-primary" />
             </div>
@@ -209,7 +284,7 @@ const Campaigns = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Conversões Este Mês</p>
-                <p className="text-2xl font-bold text-yellow-600">127</p>
+                <p className="text-2xl font-bold text-yellow-600">{conversionsThisMonth}</p>
               </div>
               <BarChart3 className="h-8 w-8 text-yellow-600" />
             </div>
@@ -220,7 +295,7 @@ const Campaigns = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Receita Gerada</p>
-                <p className="text-2xl font-bold text-green-600">R$ 8.450</p>
+                <p className="text-2xl font-bold text-green-600">R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               </div>
               <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
                 <span className="text-green-600 font-bold text-sm">R$</span>

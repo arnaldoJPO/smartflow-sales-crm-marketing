@@ -30,47 +30,53 @@ const features = [
 
 const plans = [
   {
-    name: "Starter",
-    price: "R$ 97",
+    name: "Básico",
+    price: "R$ 67",
     period: "/mês",
-    description: "Perfeito para restaurantes pequenos",
-    features: [
-      "Até 500 clientes",
-      "2 campanhas por mês",
-      "Dashboard básico",
-      "Suporte por email",
-      "Integração WhatsApp"
-    ]
-  },
-  {
-    name: "Professional",
-    price: "R$ 197",
-    period: "/mês",
-    description: "Para restaurantes em crescimento",
-    features: [
-      "Até 2.000 clientes",
-      "Campanhas ilimitadas",
-      "Analytics avançado",
-      "Suporte prioritário",
-      "Todas as integrações",
-      "A/B Testing"
+    description: "Foco no essencial: organize pedidos e clientes.",
+    included: [
+      "CRM para gestão de clientes",
+      "Gestão de Pedidos",
+      "Criação de link de pagamento (Stripe/Mercado Pago)",
+      "1 login de usuário",
     ],
-    popular: true
+    addons: [
+      "WhatsApp: cobrado por uso",
+    ],
   },
   {
-    name: "Enterprise",
-    price: "R$ 397",
+    name: "Intermediário",
+    price: "R$ 147",
     period: "/mês",
-    description: "Para redes e grandes operações",
-    features: [
-      "Clientes ilimitados",
-      "Multi-restaurantes",
-      "API personalizada",
-      "Suporte dedicado",
-      "Consultoria inclusa",
-      "White label"
-    ]
-  }
+    description: "Foco em inteligência: entenda seus dados e automatize o marketing.",
+    included: [
+      "Tudo do Básico",
+      "Dashboard de Analytics (Vendas, Métricas do SaaS)",
+      "Integração com Instagram/Facebook para Analytics de engajamento",
+      "Automações básicas de marketing (ex: mensagem de 'feliz aniversário')",
+      "Até 3 logins de usuário",
+    ],
+    addons: [
+      "WhatsApp: cobrado por uso",
+    ],
+    popular: true,
+  },
+  {
+    name: "Premium",
+    price: "R$ 297",
+    period: "/mês",
+    description: "Foco em escala e automação para grandes operações e franquias.",
+    included: [
+      "Tudo do Intermediário",
+      "Automações avançadas e personalizadas",
+      "Acesso via API para integrações externas",
+      "Logins de usuário ilimitados com controle de permissões",
+      "Suporte prioritário via WhatsApp/Telefone",
+    ],
+    addons: [
+      "WhatsApp: cobrado por uso",
+    ],
+  },
 ];
 
 const Index = () => {
@@ -207,27 +213,47 @@ const Index = () => {
                      </div>
                    </div>
 
-                  <ul className="space-y-3 mb-8">
-                     {plan.features.map((feature, featureIndex) => (
-                       <li key={featureIndex} className="flex items-center gap-3">
-                         <Check className="h-5 w-5 text-green-600" />
-                         <span className="text-foreground/80">{feature}</span>
-                       </li>
-                     ))}
-                  </ul>
+                   <div className="space-y-6 mb-8">
+                     <div>
+                       <p className="text-sm font-medium text-foreground/70 mb-2">Inclui:</p>
+                       <ul className="space-y-3">
+                         {plan.included?.map((feature: string, featureIndex: number) => (
+                           <li key={featureIndex} className="flex items-center gap-3">
+                             <Check className="h-5 w-5 text-green-600" />
+                             <span className="text-foreground/80">{feature}</span>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
 
-                  <Link to="/register" className="block">
-                    <Button 
-                      className="w-full" 
-                      variant={plan.popular ? "default" : "outline"}
-                    >
-                      Começar Agora
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                     {plan.addons?.length ? (
+                       <div>
+                         <p className="text-sm font-medium text-foreground/70 mb-2">Recursos com custo adicional:</p>
+                         <ul className="space-y-3">
+                           {plan.addons.map((addon: string, addonIndex: number) => (
+                             <li key={addonIndex} className="flex items-center gap-3">
+                               <Check className="h-5 w-5 text-yellow-600" />
+                               <span className="text-foreground/80">{addon}</span>
+                             </li>
+                           ))}
+                         </ul>
+                         <p className="text-xs text-muted-foreground mt-2">O uso de WhatsApp é cobrado à parte conforme volume de mensagens.</p>
+                       </div>
+                     ) : null}
+                   </div>
+
+                   <Link to="/register" className="block">
+                     <Button 
+                       className="w-full" 
+                       variant={plan.popular ? "default" : "outline"}
+                     >
+                       Começar Agora
+                     </Button>
+                   </Link>
+                 </CardContent>
+               </Card>
+             ))}
+           </div>
         </div>
       </section>
 

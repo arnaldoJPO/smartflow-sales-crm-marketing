@@ -8,6 +8,7 @@ import { BarChart3, Users, FileText, Grid2x2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CampaignWizard } from "@/components/CampaignWizard";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -26,51 +27,119 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const [currentUser, setCurrentUser] = useState<{ id: string; plan?: string; restaurant_id?: string } | null>(null);
+  
+  useEffect(() => {
+    async function fetchUserData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setCurrentUser(null);
+          return;
+        }
+
+        // Buscar informações do restaurante do usuário
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('restaurant_id')
+          .eq('id', user.id)
+          .single();
+
+        setCurrentUser({
+          id: user.id,
+          plan: 'free', // Por enquanto usando plano padrão
+          restaurant_id: profile?.restaurant_id
+        });
+      } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        setCurrentUser(null);
+      }
+    }
+    fetchUserData();
+  }, []);
+  // lazy import to avoid circular dep
+  const [planLimits, setPlanLimits] = useState<any>(null);
+  
+  useEffect(() => {
+    import('@/lib/plan').then(({ getPlanLimits }) => {
+      setPlanLimits(getPlanLimits(currentUser?.plan));
+    });
+  }, [currentUser?.plan]);
+
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        const response = await fetch('/supabase/functions/report-generator', {
+        if (!supabaseUrl || !supabaseAnonKey) {
+          setSalesData([]);
+          setKpiData({
+            todaySales: { value: 0, change: 0 },
+            activeClients: { value: 0, change: 0 },
+            conversionRate: { value: 0, change: 0 },
+            campaignROI: { value: 0, change: 0 }
+          });
+          setRecentActivities([]);
+          setAlerts([]);
+          return;
+        }
+
+        if (!currentUser?.restaurant_id) {
+          setSalesData([]);
+          setKpiData({
+            todaySales: { value: 0, change: 0 },
+            activeClients: { value: 0, change: 0 },
+            conversionRate: { value: 0, change: 0 },
+            campaignROI: { value: 0, change: 0 }
+          });
+          setRecentActivities([]);
+          setAlerts([]);
+          return;
+        }
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/report-generator`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`
+          },
           body: JSON.stringify({
             type: 'dashboard',
             period: 'month',
-            restaurant_id: 'your-restaurant-id' // Replace with actual restaurant ID or context
+            restaurant_id: currentUser.restaurant_id
           })
         });
         const data = await response.json();
         if (data.success) {
           const dashboardData = data.data;
           
-          // Map sales chart data
-          setSalesData(dashboardData.daily_stats?.map(day => ({ 
+          setSalesData(dashboardData.daily_stats?.map((day: any) => ({ 
             name: new Date(day.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), 
             value: day.revenue 
           })) || []);
           
-          // Map KPI data from metrics
           const metrics = dashboardData.metrics || {};
           setKpiData({
             todaySales: {
               value: metrics.total_revenue || 0,
-              change: 12.5 // Calculate based on previous period if available
+              change: 12.5
             },
             activeClients: {
               value: metrics.total_customers || 0,
-              change: 8.2 // Calculate based on previous period if available
+              change: 8.2
             },
             conversionRate: {
               value: metrics.conversion_rate || 0,
-              change: -2.1 // Calculate based on previous period if available
+              change: -2.1
             },
             campaignROI: {
               value: ((metrics.total_revenue || 0) / Math.max(metrics.total_messages || 1, 1)) * 100,
-              change: 15.3 // Calculate based on previous period if available
+              change: 15.3
             }
           });
           
-          setRecentActivities([]); // Implement mapping if backend provides recent activities
-          setAlerts([]); // Implement mapping if backend provides alerts
+          setRecentActivities([]);
+          setAlerts([]);
         } else {
           toast({
             title: "Erro ao carregar dados",
@@ -87,24 +156,35 @@ const Dashboard = () => {
       }
     }
     fetchDashboardData();
-  }, [toast]);
+  }, [toast, supabaseUrl, supabaseAnonKey, currentUser?.restaurant_id]);
 
   const handleExportReport = async () => {
     try {
-      const response = await fetch('/supabase/functions/report-generator', {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        toast({ title: "Exportação indisponível", description: "Configure as variáveis do Supabase." });
+        return;
+      }
+      if (!currentUser?.restaurant_id) {
+        toast({ title: "Exportação indisponível", description: "Restaurante não encontrado." });
+        return;
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/report-generator`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
         body: JSON.stringify({
           type: 'dashboard',
           period: 'month',
-          restaurant_id: 'your-restaurant-id',
+          restaurant_id: currentUser.restaurant_id,
           export_format: 'csv'
         })
       });
       
       const data = await response.json();
       if (data.success && data.download_url) {
-        // Create download link
         const link = document.createElement('a');
         link.href = data.download_url;
         link.download = data.file_name || 'dashboard_report.csv';
@@ -112,23 +192,12 @@ const Dashboard = () => {
         link.click();
         document.body.removeChild(link);
         
-        toast({
-          title: "Relatório exportado",
-          description: "O relatório foi baixado com sucesso.",
-        });
+        toast({ title: "Relatório exportado", description: "O relatório foi baixado com sucesso." });
       } else {
-        toast({
-          title: "Erro na exportação",
-          description: data.error || "Falha ao exportar relatório.",
-          variant: "destructive"
-        });
+        toast({ title: "Erro na exportação", description: data.error || "Falha ao exportar relatório.", variant: "destructive" });
       }
     } catch (error) {
-      toast({
-        title: "Erro de rede",
-        description: "Não foi possível exportar o relatório.",
-        variant: "destructive"
-      });
+      toast({ title: "Erro de rede", description: "Não foi possível exportar o relatório.", variant: "destructive" });
     }
   };
 
@@ -163,7 +232,7 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading || !planLimits) {
     return <div>Carregando dados do dashboard...</div>;
   }
 
@@ -199,14 +268,16 @@ const Dashboard = () => {
           icon={Users}
           color="blue"
         />
-        <KPICard
-          title="Taxa Conversão"
-          value={`${kpiData.conversionRate.value.toFixed(1)}%`}
-          change={kpiData.conversionRate.change}
-          changeLabel="vs mês anterior"
-          icon={Grid2x2}
-          color="yellow"
-        />
+        {planLimits.features.advancedAutomations && (
+          <KPICard
+            title="Taxa Conversão"
+            value={`${kpiData.conversionRate.value.toFixed(1)}%`}
+            change={kpiData.conversionRate.change}
+            changeLabel="vs mês anterior"
+            icon={Grid2x2}
+            color="yellow"
+          />
+        )}
         <KPICard
           title="ROI Campanhas"
           value={`${kpiData.campaignROI.value.toFixed(0)}%`}
@@ -216,6 +287,9 @@ const Dashboard = () => {
           color="blue"
         />
       </div>
+      {!planLimits.features.advancedAutomations && (
+        <p className="text-xs text-muted-foreground">Alguns KPIs estão disponíveis apenas no Premium.</p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sales Chart */}

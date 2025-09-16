@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { supabase } from "@/lib/supabase";
 
 const benefits = [
   {
@@ -39,7 +40,7 @@ const Login = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -51,13 +52,29 @@ const Login = () => {
       return;
     }
 
-    // Simulate login
-    toast({
-      title: "Login realizado!",
-      description: "Bem-vindo ao SmartFlow Sales.",
-    });
-    
-    navigate("/dashboard");
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Login realizado!",
+        description: `Bem-vindo ao SmartFlow Sales, ${data.user?.email}!`,
+      });
+      
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Erro ao fazer login",
+        description: error.message || "Credenciais inválidas.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
